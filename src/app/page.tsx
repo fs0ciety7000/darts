@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { Target, Plus, History, Trophy, Hash, Crosshair, ArrowUpRight } from 'lucide-react';
 import { db, games, gamePlayers } from '@/lib/db';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and, inArray } from 'drizzle-orm';
 import { formatDate } from '@/lib/utils';
 
 async function getRecentGames() {
@@ -32,12 +32,20 @@ async function getRecentGames() {
 
 async function getTopPlayers() {
   try {
-    const all = await db
+    const completedGames = await db
+      .select({ id: games.id })
+      .from(games)
+      .where(eq(games.status, 'completed'));
+    const completedIds = completedGames.map((g) => g.id);
+    if (completedIds.length === 0) return [];
+
+    const winners = await db
       .select()
       .from(gamePlayers)
-      .where(eq(gamePlayers.finishPosition, 1));
+      .where(and(eq(gamePlayers.finishPosition, 1), inArray(gamePlayers.gameId, completedIds)));
+
     const counts = new Map<string, { name: string; color: string; wins: number }>();
-    for (const p of all) {
+    for (const p of winners) {
       const existing = counts.get(p.playerName);
       if (existing) existing.wins++;
       else counts.set(p.playerName, { name: p.playerName, color: p.color, wins: 1 });
