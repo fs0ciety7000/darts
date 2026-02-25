@@ -1,7 +1,7 @@
 # Darts OCC v2 — Setup Guide
 
 ## Stack
-- **Next.js 15** (App Router) + TypeScript
+- **Next.js 15** (App Router) + TypeScript 2
 - **Tailwind CSS v4** + shadcn/ui-style components
 - **Framer Motion** — animations podium & leader
 - **Neon (PostgreSQL)** — database serverless
