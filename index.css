@@ -1,0 +1,117 @@
+/* --- Thème bois sombre réaliste --- */
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow-y: hidden; /* empêche le scroll vertical global */
+}
+
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background: url('bois.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    color: #eee;
+}
+
+/* Conteneur du tableau */
+#tableContainer {
+    margin-top: 40px;
+    height: calc(100vh - 140px);
+    overflow-y: auto;            /* scroll vertical uniquement ici */
+    overflow-x: auto;            /* scroll horizontal si beaucoup de joueurs */
+    border: 2px solid #3a3a3a;
+    background: rgba(20, 20, 20, 0.85);
+    box-shadow: 0 0 20px #000;
+    backdrop-filter: blur(2px);
+}
+
+/* Tableau */
+table {
+    border-collapse: collapse;
+    width: 100%; /* <<< LA CORRECTION IMPORTANTE */
+    min-width: max-content; /* permet le scroll horizontal si nécessaire */
+    background: rgba(20, 20, 20, 0.85);
+    color: #eee;
+}
+
+/* Cellules */
+th, td {
+    border: 1px solid #555;
+    padding: 0;
+    text-align: center;
+    height: 40px;
+    line-height: 40px;
+}
+
+/* Ligne des joueurs */
+.headerRow1 th,
+.playerHeader {
+    background: linear-gradient(#1a1a1a, #0f0f0f);
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    border-bottom: none;
+    font-weight: bold;
+    color: #f0f0f0;
+}
+
+/* Ligne L1 / L2 / L3 */
+.headerRow2 th {
+    background: linear-gradient(#2a2a2a, #1a1a1a);
+    position: sticky;
+    top: 40px;
+    z-index: 5;
+    border-bottom: none;
+}
+
+/* Ligne des scores */
+.scoreRow td {
+    background: linear-gradient(#3a3a3a, #2a2a2a);
+    font-weight: bold;
+    position: sticky;
+    top: 80px;
+    z-index: 4;
+    border-bottom: none;
+}
+
+/* Inputs */
+input[type="number"] {
+    width: 45px;
+    font-size: 14px;
+    text-align: center;
+    height: 30px;
+    background: #111;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 3px;
+}
+
+/* Animation de victoire */
+@keyframes winPulse {
+    0% { background: #4CAF50; transform: scale(1); }
+    50% { background: #8BC34A; transform: scale(1.15); }
+    100% { background: #4CAF50; transform: scale(1); }
+}
+
+.winner {
+    animation: winPulse 0.6s ease-out;
+    color: white;
+}
+
+/* Podium */
+.gold {
+    background: linear-gradient(#d4af37, #b8860b) !important;
+    color: #000 !important;
+}
+
+.silver {
+    background: linear-gradient(#c0c0c0, #a9a9a9) !important;
+    color: #000 !important;
+}
+
+.bronze {
+    background: linear-gradient(#cd7f32, #8b4513) !important;
+    color: #000 !important;
+}

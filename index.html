@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Darts Scoreboard - OCC</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Roboto Mono', 'monospace']
+                    },
+                    colors: {
+                        bgDark: '#0a0a0c',
+                        panel: '#18181b',
+                        panelAlt: '#27272a',
+                        accent: '#eab308',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0a0a0c;
+            background-image: radial-gradient(circle at 50% 0%, #1f1f22 0%, #0a0a0c 70%);
+            color: #f4f4f5;
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: #0a0a0c; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 5px; }
+
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        @keyframes flashWin {
+            0% { background-color: rgba(34, 197, 94, 0.4); transform: scale(1); }
+            50% { background-color: rgba(34, 197, 94, 0.8); transform: scale(1.02); }
+            100% { background-color: transparent; transform: scale(1); }
+        }
+        .win-anim { animation: flashWin 1s ease-out; color: #facc15 !important; }
+
+        .score-perfect { color: #facc15; font-weight: 800; text-shadow: 0 0 10px rgba(250, 204, 21, 0.5); }
+        .score-good { color: #38bdf8; font-weight: 700; }
+        .score-zero { color: #52525b; }
+
+        .score-first { color: #4ade80 !important; text-shadow: 0 0 15px rgba(74, 222, 128, 0.3); } /* Vert */
+        .score-last { color: #f87171 !important; } /* Rouge */
+
+        .player-divider { border-right: 6px solid #000 !important; }
+
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
+        .badge-bust { background: rgba(127, 29, 29, 0.5); color: #f87171; border: 1px solid rgba(153, 27, 27, 0.5); }
+
+        .cricket-btn { transition: all 0.1s; user-select: none; cursor: pointer; }
+        .cricket-btn:active { transform: scale(0.9); }
+        
+        /* Cacher les placeholders trop longs sur petit écran si besoin */
+        ::placeholder { color: #3f3f46; font-size: 0.875rem; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col p-4 font-sans text-zinc-100 relative">
+
+    <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+    <header class="w-full bg-panel border border-zinc-800 rounded-xl p-4 mb-4 shadow-2xl flex flex-wrap gap-6 items-center justify-between z-50">
+        
+        <div class="flex gap-4 items-center">
+            <h1 class="text-2xl font-black tracking-tighter text-white uppercase italic mr-4 text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 to-zinc-500 flex items-center gap-2">
+                <i data-lucide="target" class="w-7 h-7 text-zinc-300"></i> Darts OCC
+            </h1>
+            
+            <div class="flex bg-zinc-950 rounded-lg p-1 border border-zinc-800">
+                <button onclick="setMode('X01')" id="btn-mode-X01" class="flex items-center gap-2 px-4 py-2 rounded-md font-bold text-sm transition-all bg-zinc-800 text-white shadow-md">
+                    <i data-lucide="hash" class="w-4 h-4"></i> X01
+                </button>
+                <button onclick="setMode('CRICKET')" id="btn-mode-CRICKET" class="flex items-center gap-2 px-4 py-2 rounded-md font-bold text-sm transition-all text-zinc-500 hover:text-zinc-300">
+                    <i data-lucide="crosshairs" class="w-4 h-4"></i> Cricket
+                </button>
+                <button onclick="setMode('SHANGHAI')" id="btn-mode-SHANGHAI" class="flex items-center gap-2 px-4 py-2 rounded-md font-bold text-sm transition-all text-zinc-500 hover:text-zinc-300">
+                    <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Shanghai
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div id="x01-options" class="flex items-center gap-2">
+                <label class="text-sm font-semibold text-zinc-400 flex items-center gap-1"><i data-lucide="arrow-down-0-1" class="w-4 h-4"></i> Départ</label>
+                <select id="startScore" onchange="initGame()" class="bg-zinc-900 border border-zinc-700 text-white font-mono text-lg rounded px-2 py-1 outline-none cursor-pointer">
+                    <option value="301">301</option>
+                    <option value="501" selected>501</option>
+                    <option value="701">701</option>
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-semibold text-zinc-400 flex items-center gap-1"><i data-lucide="users" class="w-4 h-4"></i> Joueurs</label>
+                <select id="playerCount" onchange="initGame()" class="bg-zinc-900 border border-zinc-700 text-white font-mono text-lg rounded px-2 py-1 outline-none cursor-pointer">
+                    <option value="1">1</option><option value="2">2</option>
+                    <option value="3">3</option><option value="4" selected>4</option>
+                    <option value="5">5</option><option value="6">6</option>
+                    <option value="7">7</option><option value="8">8</option>
+                </select>
+            </div>
+
+            <button onclick="initGame()" class="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg font-bold transition-colors shadow-lg shadow-red-900/50">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> RESET
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 w-full bg-bgDark border border-zinc-800 rounded-xl overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.8)] relative flex flex-col">
+        <div id="table-container" class="flex-1 overflow-auto">
+            </div>
+    </div>
+
+    <script>
+        let gameState = {
+            mode: 'X01', 
+            players: 4,
+            startScore: 501,
+            podium: [],
+            cricketData: []
+        };
+
+        const container = document.getElementById('table-container');
+
+        function showToast(message, type = "success") {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgClass = type === "error" ? "bg-red-600/90 border-red-500" : "bg-green-600/90 border-green-500";
+            const icon = type === "error" ? "alert-triangle" : "trophy";
+            
+            toast.className = `flex items-center gap-3 px-6 py-4 rounded-lg border shadow-2xl text-white font-bold backdrop-blur-md transition-all duration-500 opacity-0 translate-y-4 ${bgClass}`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i> <span>${message}</span>`;
+            
+            toastContainer.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => toast.classList.remove('opacity-0', 'translate-y-4'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        function setMode(mode) {
+            gameState.mode = mode;
+            ['X01', 'CRICKET', 'SHANGHAI'].forEach(m => {
+                const btn = document.getElementById(`btn-mode-${m}`);
+                if (m === mode) {
+                    btn.className = "flex items-center gap-2 px-4 py-2 rounded-md font-bold text-sm transition-all bg-zinc-800 text-white shadow-md";
+                } else {
+                    btn.className = "flex items-center gap-2 px-4 py-2 rounded-md font-bold text-sm transition-all text-zinc-500 hover:text-zinc-300 bg-transparent";
+                }
+            });
+            
+            document.getElementById('x01-options').style.display = mode === 'X01' ? 'flex' : 'none';
+            initGame();
+        }
+
+        function initGame() {
+            gameState.players = parseInt(document.getElementById("playerCount").value);
+            gameState.startScore = parseInt(document.getElementById("startScore").value);
+            gameState.podium = [];
+            
+            if (gameState.mode === 'CRICKET') initCricketData();
+
+            renderBoard();
+        }
+
+        function renderBoard() {
+            container.innerHTML = "";
+            const table = document.createElement('table');
+            table.className = "w-full min-w-max text-center border-collapse table-fixed";
+
+            const thead = document.createElement('thead');
+            const trHead = document.createElement('tr');
+            
+            const thCorner = document.createElement('th');
+            thCorner.className = "w-24 bg-black border-b-4 border-zinc-800 text-zinc-500 font-bold p-4 sticky top-0 left-0 z-50 player-divider text-xl uppercase";
+            thCorner.textContent = gameState.mode === 'CRICKET' ? 'Cible' : 'Tour';
+            trHead.appendChild(thCorner);
+
+            for (let p = 1; p <= gameState.players; p++) {
+                const th = document.createElement('th');
+                const isAlt = p % 2 === 0;
+                th.className = `p-4 sticky top-0 z-40 border-b-4 border-zinc-800 player-divider min-w-[160px] ${isAlt ? 'bg-panelAlt' : 'bg-panel'}`;
+                th.innerHTML = `
+                    <div class="flex flex-col items-center gap-1">
+                        <div class="text-2xl font-black text-white" id="header-p${p}">JOUEUR ${p}</div>
+                        <div id="badge-p${p}" class="h-5 flex items-center justify-center"></div>
+                    </div>`;
+                trHead.appendChild(th);
+            }
+            thead.appendChild(trHead);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+
+            if (gameState.mode === 'X01') renderX01(tbody);
+            if (gameState.mode === 'CRICKET') renderCricket(tbody);
+            if (gameState.mode === 'SHANGHAI') renderShanghai(tbody);
+
+            table.appendChild(tbody);
+            container.appendChild(table);
+            
+            lucide.createIcons(); // Force rendu des icônes à chaque regénération
+        }
+
+        // ==========================================
+        // MODE X01
+        // ==========================================
+        function renderX01(tbody) {
+            const trScore = document.createElement('tr');
+            const tdLabel = document.createElement('td');
+            tdLabel.className = "bg-black border-b border-zinc-800 text-zinc-400 font-bold sticky top-[80px] left-0 z-30 player-divider uppercase tracking-widest text-sm";
+            tdLabel.textContent = "Reste";
+            trScore.appendChild(tdLabel);
+
+            for (let p = 0; p < gameState.players; p++) {
+                const td = document.createElement('td');
+                const isAlt = (p+1) % 2 === 0;
+                td.className = `scoreCell p-4 sticky top-[80px] z-20 border-b border-zinc-800 player-divider font-mono text-6xl font-black tracking-tighter shadow-xl transition-all ${isAlt ? 'bg-zinc-800/95' : 'bg-zinc-900/95'} backdrop-blur-md`;
+                td.textContent = gameState.startScore;
+                trScore.appendChild(td);
+            }
+            tbody.appendChild(trScore);
+
+            let maxRounds = 20; 
+            if(gameState.startScore === 501) maxRounds = 30;
+            if(gameState.startScore === 701) maxRounds = 50;
+
+            for (let i = 1; i <= maxRounds; i++) {
+                const tr = document.createElement('tr');
+                
+                const tdManche = document.createElement('td');
+                tdManche.className = "bg-black border-b border-zinc-900 text-zinc-500 font-bold text-2xl sticky left-0 z-10 player-divider";
+                tdManche.textContent = i;
+                tr.appendChild(tdManche);
+
+                for (let p = 0; p < gameState.players; p++) {
+                    const td = document.createElement('td');
+                    const isAlt = (p+1) % 2 === 0;
+                    td.className = `p-3 border-b border-zinc-800/50 player-divider ${isAlt ? 'bg-[#1c1c1f]' : 'bg-[#141417]'}`;
+                    
+                    const flexDiv = document.createElement('div');
+                    flexDiv.className = "flex justify-center gap-2";
+
+                    for (let j = 0; j < 3; j++) {
+                        const input = document.createElement('input');
+                        input.type = "number";
+                        input.min = 0; input.max = 60;
+                        input.placeholder = "•";
+                        input.className = "w-14 h-14 bg-zinc-950 border-2 border-zinc-800 rounded-lg text-center text-2xl font-mono text-white focus:bg-zinc-900 focus:border-accent outline-none transition-all";
+                        input.oninput = (e) => applyColorLogic(e.target); 
+                        flexDiv.appendChild(input);
+                    }
+                    td.appendChild(flexDiv);
+                    tr.appendChild(td);
+                }
+                tbody.appendChild(tr);
+            }
+        }
+
+        function applyColorLogic(input) {
+            let val = parseInt(input.value);
+            
+            // Protection + Style d'erreur
+            if (val > 60) { 
+                input.value = 0; 
+                val = 0; 
+                input.classList.add('border-red-500', 'bg-red-950/40', 'text-red-400');
+            } else {
+                input.classList.remove('border-red-500', 'bg-red-950/40', 'text-red-400');
+            }
+            
+            if (val < 0) { input.value = 0; val = 0; }
+
+            input.classList.remove('score-perfect', 'score-good', 'score-zero');
+            
+            if (!isNaN(val) && val <= 60) {
+                if (val === 60 || val === 50) input.classList.add('score-perfect');
+                else if (val >= 20) input.classList.add('score-good');
+                else if (val === 0) input.classList.add('score-zero');
+            }
+            
+            updateX01Scores();
+        }
+
+        function updateX01Scores() {
+            let scores = Array(gameState.players).fill(gameState.startScore);
+            const rows = [...document.querySelectorAll("tbody tr")].slice(1); 
+
+            for(let p = 1; p <= gameState.players; p++) {
+                if(!gameState.podium.includes(p-1)) document.getElementById(`badge-p${p}`).innerHTML = "";
+            }
+
+            rows.forEach(row => {
+                const inputs = [...row.querySelectorAll("input")];
+                for (let p = 0; p < gameState.players; p++) {
+                    const before = scores[p];
+                    let roundTotal = 0;
+                    let hasInput = false;
+
+                    for (let j = 0; j < 3; j++) {
+                        const val = parseInt(inputs[p * 3 + j].value);
+                        if (!isNaN(val)) { roundTotal += val; hasInput = true; }
+                    }
+
+                    if (hasInput) {
+                        if (scores[p] - roundTotal < 0 || scores[p] - roundTotal === 1) {
+                            scores[p] = before; // BUST
+                            document.getElementById(`badge-p${p+1}`).innerHTML = `<span class="badge badge-bust"><i data-lucide="alert-triangle" class="w-3 h-3"></i> BUST</span>`;
+                        } else {
+                            scores[p] -= roundTotal;
+                            if(!gameState.podium.includes(p)) document.getElementById(`badge-p${p+1}`).innerHTML = "";
+                        }
+                    }
+                }
+            });
+
+            let activeScores = scores.map((s, idx) => ({ score: s, index: idx })).filter(s => s.score > 0);
+            let minScore = activeScores.length > 0 ? Math.min(...activeScores.map(s => s.score)) : -1;
+            let maxScore = activeScores.length > 0 ? Math.max(...activeScores.map(s => s.score)) : -1;
+
+            document.querySelectorAll(".scoreCell").forEach((c, i) => {
+                const old = parseInt(c.textContent);
+                c.textContent = scores[i];
+                c.classList.remove("score-first", "score-last", "text-white");
+
+                if (scores[i] === 0) {
+                    c.classList.add("text-white");
+                    if (old !== 0) {
+                        c.classList.add("win-anim");
+                        if (!gameState.podium.includes(i)) {
+                            gameState.podium.push(i);
+                            showToast(`Le Joueur ${i+1} a terminé !`, "success");
+                        }
+                        setTimeout(() => c.classList.remove("win-anim"), 1000);
+                    }
+                } else if (scores[i] === minScore && minScore !== maxScore) {
+                    c.classList.add("score-first"); 
+                } else if (scores[i] === maxScore && minScore !== maxScore) {
+                    c.classList.add("score-last"); 
+                } else {
+                    c.classList.add("text-white");
+                }
+            });
+            
+            updatePodiumUI();
+            lucide.createIcons();
+        }
+
+
+        // ==========================================
+        // MODE CRICKET
+        // ==========================================
+        function initCricketData() {
+            gameState.cricketData = Array(gameState.players).fill(null).map(() => ({
+                marks: { 20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 25: 0 },
+                score: 0
+            }));
+        }
+
+        function renderCricket(tbody) {
+            const targets = [20, 19, 18, 17, 16, 15, 25];
+            
+            const trScore = document.createElement('tr');
+            const tdLabel = document.createElement('td');
+            tdLabel.className = "bg-black border-b border-zinc-800 text-zinc-400 font-bold sticky top-[80px] left-0 z-30 player-divider uppercase";
+            tdLabel.textContent = "Points";
+            trScore.appendChild(tdLabel);
+
+            for (let p = 0; p < gameState.players; p++) {
+                const td = document.createElement('td');
+                const isAlt = (p+1) % 2 === 0;
+                td.className = `cricket-score-cell p-4 sticky top-[80px] z-20 border-b border-zinc-800 player-divider font-mono text-5xl font-black tracking-tighter text-accent ${isAlt ? 'bg-zinc-800/95' : 'bg-zinc-900/95'} backdrop-blur-md`;
+                td.textContent = "0";
+                trScore.appendChild(td);
+            }
+            tbody.appendChild(trScore);
+
+            targets.forEach(target => {
+                const tr = document.createElement('tr');
+                tr.id = `cricket-row-${target}`;
+                tr.className = "transition-all duration-500";
+                
+                const tdCible = document.createElement('td');
+                tdCible.className = "bg-black border-b border-zinc-900 text-white font-black text-4xl py-6 sticky left-0 z-10 player-divider";
+                tdCible.textContent = target === 25 ? "BULL" : target;
+                if(target === 25) tdCible.classList.add("text-red-500", "text-3xl");
+                tr.appendChild(tdCible);
+
+                for (let p = 0; p < gameState.players; p++) {
+                    const td = document.createElement('td');
+                    const isAlt = (p+1) % 2 === 0;
+                    td.className = `border-b border-zinc-800/50 player-divider ${isAlt ? 'bg-[#1c1c1f]' : 'bg-[#141417]'}`;
+                    
+                    const btn = document.createElement('div');
+                    btn.className = "cricket-btn mx-auto w-20 h-20 rounded-full border-4 border-zinc-700 bg-zinc-900 flex items-center justify-center text-4xl font-black text-zinc-500 hover:border-zinc-500";
+                    btn.textContent = "";
+                    btn.onclick = () => handleCricketClick(p, target, btn, tr.id);
+                    
+                    td.appendChild(btn);
+                    tr.appendChild(td);
+                }
+                tbody.appendChild(tr);
+            });
+        }
+
+        function handleCricketClick(playerIndex, target, btnElement, rowId) {
+            let pData = gameState.cricketData[playerIndex];
+            
+            if (pData.marks[target] < 3) {
+                pData.marks[target]++;
+            } else {
+                let isClosedByAll = gameState.cricketData.every(p => p.marks[target] === 3);
+                if (!isClosedByAll) {
+                    pData.score += target;
+                }
+            }
+
+            const marks = pData.marks[target];
+            if (marks === 1) { btnElement.textContent = "/"; btnElement.className = "cricket-btn mx-auto w-20 h-20 rounded-full border-4 border-blue-500 bg-zinc-900 flex items-center justify-center text-4xl font-black text-blue-500"; }
+            if (marks === 2) { btnElement.textContent = "X"; btnElement.className = "cricket-btn mx-auto w-20 h-20 rounded-full border-4 border-orange-500 bg-zinc-900 flex items-center justify-center text-4xl font-black text-orange-500"; }
+            if (marks === 3) { 
+                btnElement.innerHTML = `<i data-lucide="check" class="w-10 h-10 text-green-500"></i>`; 
+                btnElement.className = "cricket-btn mx-auto w-20 h-20 rounded-full border-4 border-green-500 bg-green-900/20 flex items-center justify-center"; 
+            }
+
+            document.querySelectorAll('.cricket-score-cell')[playerIndex].textContent = pData.score;
+            lucide.createIcons();
+
+            // Vérification si la ligne entière est fermée pour la griser/flouter
+            let isRowClosed = gameState.cricketData.every(p => p.marks[target] === 3);
+            if(isRowClosed) {
+                document.getElementById(rowId).classList.add("opacity-40", "grayscale", "blur-[1px]");
+            }
+        }
+
+        // ==========================================
+        // MODE SHANGHAI
+        // ==========================================
+        function renderShanghai(tbody) {
+            const trScore = document.createElement('tr');
+            const tdLabel = document.createElement('td');
+            tdLabel.className = "bg-black border-b border-zinc-800 text-zinc-400 font-bold sticky top-[80px] left-0 z-30 player-divider uppercase";
+            tdLabel.textContent = "Total";
+            trScore.appendChild(tdLabel);
+
+            for (let p = 0; p < gameState.players; p++) {
+                const td = document.createElement('td');
+                const isAlt = (p+1) % 2 === 0;
+                td.className = `shanghai-score-cell p-4 sticky top-[80px] z-20 border-b border-zinc-800 player-divider font-mono text-5xl font-black tracking-tighter text-blue-400 ${isAlt ? 'bg-zinc-800/95' : 'bg-zinc-900/95'} backdrop-blur-md transition-colors`;
+                td.textContent = "0";
+                trScore.appendChild(td);
+            }
+            tbody.appendChild(trScore);
+
+            for (let i = 1; i <= 20; i++) {
+                const tr = document.createElement('tr');
+                const maxPoints = i * 9; // Calcul du score maximum pour ce tour
+                
+                const tdManche = document.createElement('td');
+                tdManche.className = "bg-black border-b border-zinc-900 text-zinc-400 font-bold text-xl py-4 sticky left-0 z-10 player-divider";
+                tdManche.innerHTML = `Tour ${i} <br><div class="flex items-center justify-center gap-1.5 mt-1 text-white text-3xl font-black"><i data-lucide="crosshair" class="w-7 h-7 text-blue-400"></i> ${i}</div>`;
+                tr.appendChild(tdManche);
+
+                for (let p = 0; p < gameState.players; p++) {
+                    const td = document.createElement('td');
+                    const isAlt = (p+1) % 2 === 0;
+                    td.className = `p-3 border-b border-zinc-800/50 player-divider ${isAlt ? 'bg-[#1c1c1f]' : 'bg-[#141417]'}`;
+                    
+                    const input = document.createElement('input');
+                    input.type = "number";
+                    input.min = 0;
+                    input.max = maxPoints;
+                    input.placeholder = `Max ${maxPoints}`;
+                    input.className = "w-full max-w-[120px] h-14 bg-zinc-950 border-2 border-zinc-800 rounded-lg text-center text-2xl font-mono text-white focus:bg-zinc-900 focus:border-blue-500 outline-none transition-all";
+                    
+                    // Ajout de la logique de validation spécifique au Shanghai
+                    input.oninput = (e) => applyShanghaiLogic(e.target, maxPoints);
+                    
+                    td.appendChild(input);
+                    tr.appendChild(td);
+                }
+                tbody.appendChild(tr);
+            }
+        }
+
+        // Nouvelle logique de validation de score pour le Shanghai
+        function applyShanghaiLogic(input, maxPoints) {
+            let val = parseInt(input.value);
+            
+            // Protection + Style d'erreur si on dépasse le maximum du tour
+            if (val > maxPoints) { 
+                input.value = 0; 
+                val = 0; 
+                input.classList.add('border-red-500', 'bg-red-950/40', 'text-red-400');
+            } else {
+                input.classList.remove('border-red-500', 'bg-red-950/40', 'text-red-400');
+            }
+            
+            if (val < 0) { input.value = 0; val = 0; }
+            
+            updateShanghaiScores();
+        }
+
+        function updateShanghaiScores() {
+            let scores = Array(gameState.players).fill(0);
+            const rows = [...document.querySelectorAll("tbody tr")].slice(1);
+
+            rows.forEach(row => {
+                const inputs = [...row.querySelectorAll("input")];
+                for (let p = 0; p < gameState.players; p++) {
+                    const val = parseInt(inputs[p].value);
+                    if (!isNaN(val)) scores[p] += val;
+                }
+            });
+
+            let maxScore = Math.max(...scores);
+            let minScore = Math.min(...scores);
+
+            document.querySelectorAll(".shanghai-score-cell").forEach((c, i) => {
+                c.textContent = scores[i];
+                c.classList.remove("score-first", "score-last", "text-blue-400");
+
+                if (scores[i] === maxScore && minScore !== maxScore && maxScore > 0) {
+                    c.classList.add("score-first"); // Vert (Gagnant)
+                } else if (scores[i] === minScore && minScore !== maxScore && maxScore > 0) {
+                    c.classList.add("score-last"); // Rouge (Perdant)
+                } else {
+                    c.classList.add("text-blue-400"); // Standard
+                }
+            });
+        }
+
+        // ==========================================
+        // UI GLOBALE
+        // ==========================================
+        function updatePodiumUI() {
+            gameState.podium.forEach((playerIndex, podiumPlace) => {
+                const colors = ['text-yellow-400', 'text-zinc-300', 'text-amber-600'];
+                const title = ['🥇 1er', '🥈 2e', '🥉 3e'];
+                if(podiumPlace < 3) {
+                    const header = document.getElementById(`header-p${playerIndex + 1}`);
+                    header.className = `text-2xl font-black ${colors[podiumPlace]}`;
+                    header.textContent = title[podiumPlace];
+                }
+            });
+        }
+
+        // Init
+        initGame();
+    </script>
+</body>
+</html>
