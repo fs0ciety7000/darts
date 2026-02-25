@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { ArrowLeft, Trophy, Hash, Crosshair, ArrowUpRight, Target } from 'lucide-react';
 import { db, games, gamePlayers } from '@/lib/db';
