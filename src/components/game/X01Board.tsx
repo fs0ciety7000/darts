@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Flag } from 'lucide-react';
 import { LeaderBanner } from './LeaderBanner';
 import { PodiumReveal } from './PodiumReveal';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,7 @@ export function X01Board({ players, startScore, gameId, onRestart }: X01BoardPro
   const [showPodium, setShowPodium] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [saved, setSaved] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
 
   // Compute current scores
   const scores = Array.from({ length: n }, (_, p) => {
@@ -125,13 +126,12 @@ export function X01Board({ players, startScore, gameId, onRestart }: X01BoardPro
     });
   }, [scores.join(',')]);
 
-  // Show podium when all (or enough) players finish
+  // Show podium when all (or enough) players finish naturally
   useEffect(() => {
-    if (podium.length > 0 && podium.length === n && !saved) {
-      // All done
+    if (saved) return;
+    if (podium.length > 0 && podium.length === n) {
       setTimeout(() => setShowPodium(true), 600);
-    } else if (podium.length > 0 && n > 1 && podium.length === n - 1 && !saved) {
-      // Last remaining player auto-added
+    } else if (podium.length > 0 && n > 1 && podium.length === n - 1) {
       const remaining = Array.from({ length: n }, (_, i) => i).find((i) => !podium.includes(i));
       if (remaining !== undefined) {
         setPodium((prev) => [...prev, remaining]);
@@ -144,12 +144,12 @@ export function X01Board({ players, startScore, gameId, onRestart }: X01BoardPro
   useEffect(() => {
     if (!showPodium || saved) return;
     setSaved(true);
-    saveGame();
+    saveGame(podium);
   }, [showPodium]);
 
-  async function saveGame() {
+  async function saveGame(finalPodium: number[]) {
     try {
-      const results = podium.map((playerIdx, pos) => ({
+      const results = finalPodium.map((playerIdx, pos) => ({
         playerName: players[playerIdx].name,
         finishPosition: pos + 1,
         finalScore: scores[playerIdx],
@@ -165,20 +165,44 @@ export function X01Board({ players, startScore, gameId, onRestart }: X01BoardPro
     }
   }
 
-  // Leader: player with lowest remaining score (not finished)
+  function forceFinish() {
+    if (saved) return;
+    // Already-finished players keep their order; remaining players ranked by score (lowest first)
+    const remaining = Array.from({ length: n }, (_, i) => i)
+      .filter((i) => !podium.includes(i))
+      .sort((a, b) => scores[a] - scores[b]);
+    const fullPodium = [...podium, ...remaining];
+    setSaved(true);
+    setPodium(fullPodium);
+    setTimeout(() => setShowPodium(true), 300);
+    // saveGame triggered by showPodium effect — but saved is now true, so call directly
+    saveGame(fullPodium);
+  }
+
+  // --- Leader banner logic ---
   const activePlayers = Array.from({ length: n }, (_, i) => i).filter((i) => scores[i] > 0);
-  const leaderIdx =
-    activePlayers.length > 0
-      ? activePlayers.reduce((a, b) => (scores[a] < scores[b] ? a : b))
-      : null;
+  const minActiveScore = activePlayers.length > 0 ? Math.min(...activePlayers.map((i) => scores[i])) : null;
+
+  // All equal (start or mid-game tie) → no leader
+  const allActiveEqual =
+    activePlayers.length > 1 && activePlayers.every((i) => scores[i] === minActiveScore);
+
+  const topActive = allActiveEqual ? [] : activePlayers.filter((i) => scores[i] === minActiveScore);
+
+  const leaderIdx = topActive.length === 1 ? topActive[0] : null;
   const secondIdx =
-    activePlayers.length > 1
+    leaderIdx !== null && activePlayers.length > 1
       ? activePlayers.filter((i) => i !== leaderIdx).reduce((a, b) => (scores[a] < scores[b] ? a : b))
       : null;
 
-  const leaderInfo = leaderIdx !== null
-    ? { name: players[leaderIdx].name, color: players[leaderIdx].color, score: scores[leaderIdx] }
-    : null;
+  const leaderInfo =
+    topActive.length === 0
+      ? null
+      : { name: players[topActive[0]].name, color: players[topActive[0]].color, score: scores[topActive[0]] };
+
+  const tiedLeaders =
+    topActive.length > 1 ? topActive.map((i) => ({ name: players[i].name, color: players[i].color })) : undefined;
+
   const secondScore = secondIdx !== null ? scores[secondIdx] : null;
 
   const podiumPlayers = podium.map((idx, pos) => ({
@@ -190,13 +214,48 @@ export function X01Board({ players, startScore, gameId, onRestart }: X01BoardPro
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      {/* Leader banner */}
-      <LeaderBanner
-        leader={leaderInfo}
-        secondScore={secondScore}
-        mode="X01"
-        gameOver={showPodium}
-      />
+      {/* Leader banner + force finish */}
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <LeaderBanner
+            leader={leaderInfo}
+            secondScore={secondScore}
+            mode="X01"
+            gameOver={showPodium}
+            tiedLeaders={tiedLeaders}
+          />
+        </div>
+
+        {!showPodium && (
+          <div className="flex items-center gap-2 shrink-0">
+            {confirmEnd ? (
+              <>
+                <span className="text-sm text-zinc-400">Terminer la partie ?</span>
+                <button
+                  onClick={() => { forceFinish(); setConfirmEnd(false); }}
+                  className="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-500 transition-colors"
+                >
+                  Confirmer
+                </button>
+                <button
+                  onClick={() => setConfirmEnd(false)}
+                  className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-400 hover:text-white transition-colors"
+                >
+                  Annuler
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmEnd(true)}
+                className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-400 hover:border-red-600 hover:text-red-400 transition-colors"
+              >
+                <Flag className="h-4 w-4" />
+                Terminer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Toast notifications */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2 pointer-events-none">
@@ -270,7 +329,10 @@ export function X01Board({ players, startScore, gameId, onRestart }: X01BoardPro
               {players.map((p, i) => {
                 const s = scores[i];
                 const isLeader = leaderIdx === i && s > 0;
-                const isLast = secondIdx === null ? false : s === Math.max(...activePlayers.map((ai) => scores[ai])) && activePlayers.length > 1;
+                const isLast =
+                  secondIdx === null
+                    ? false
+                    : s === Math.max(...activePlayers.map((ai) => scores[ai])) && activePlayers.length > 1;
                 return (
                   <td
                     key={p.name}

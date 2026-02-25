@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, Flag } from 'lucide-react';
 import { LeaderBanner } from './LeaderBanner';
 import { PodiumReveal } from './PodiumReveal';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,7 @@ export function CricketBoard({ players, gameId, onRestart }: CricketBoardProps) 
   const [podiumPlayers, setPodiumPlayers] = useState<{ name: string; color: string; position: number; score: string | number }[]>([]);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [saved, setSaved] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
 
   function addToast(msg: string) {
     const id = Date.now();
@@ -53,6 +54,23 @@ export function CricketBoard({ players, gameId, onRestart }: CricketBoardProps) 
 
   function isPlayerDone(pd: PlayerData) {
     return TARGETS.every((t) => pd.marks[t] >= 3);
+  }
+
+  /**
+   * A player wins when:
+   * - They've closed all 7 targets (3 marks each)
+   * - Their score >= every other player's score
+   * (covers the 0-pts case: 0 >= 0 is true, so first to close all wins)
+   */
+  function checkWinner(d: PlayerData[]): number | null {
+    for (let i = 0; i < d.length; i++) {
+      if (!isPlayerDone(d[i])) continue;
+      const myScore = d[i].score;
+      if (d.every((pd, j) => j === i || pd.score <= myScore)) {
+        return i;
+      }
+    }
+    return null;
   }
 
   function handleClick(playerIdx: number, target: number) {
@@ -77,32 +95,47 @@ export function CricketBoard({ players, gameId, onRestart }: CricketBoardProps) 
     });
   }
 
-  // Check game over: all players have closed all targets
+  // Check winner after every data change
   useEffect(() => {
-    const allDone = data.every(isPlayerDone);
-    if (allDone && !gameOver && !saved) {
-      // Sort by score desc
-      const ranked = data
-        .map((pd, i) => ({ idx: i, score: pd.score }))
-        .sort((a, b) => b.score - a.score);
-
-      const podium = ranked.map((r, pos) => ({
-        name: players[r.idx].name,
-        color: players[r.idx].color,
-        position: pos + 1,
-        score: `${r.score} pts`,
-      }));
-
-      setPodiumPlayers(podium);
-      setSaved(true);
-      setGameOver(true);
-
-      // Save to DB
-      saveGame(ranked);
-      addToast(`🏆 ${podium[0].name} remporte le Cricket !`);
-      setTimeout(() => setGameOver(true), 300);
+    if (gameOver || saved) return;
+    const winnerIdx = checkWinner(data);
+    if (winnerIdx !== null) {
+      endGame(data, winnerIdx);
     }
   }, [data]);
+
+  function endGame(currentData: PlayerData[], forcedWinnerIdx?: number) {
+    if (saved) return;
+
+    // Rank: forced winner first, then by score desc, then by closed targets desc
+    const ranked = currentData
+      .map((pd, i) => ({
+        idx: i,
+        score: pd.score,
+        closed: TARGETS.filter((t) => pd.marks[t] >= 3).length,
+      }))
+      .sort((a, b) => {
+        if (forcedWinnerIdx !== undefined) {
+          if (a.idx === forcedWinnerIdx) return -1;
+          if (b.idx === forcedWinnerIdx) return 1;
+        }
+        if (b.score !== a.score) return b.score - a.score;
+        return b.closed - a.closed;
+      });
+
+    const podium = ranked.map((r, pos) => ({
+      name: players[r.idx].name,
+      color: players[r.idx].color,
+      position: pos + 1,
+      score: `${r.score} pts`,
+    }));
+
+    setPodiumPlayers(podium);
+    setSaved(true);
+    setGameOver(true);
+    saveGame(ranked);
+    addToast(`🏆 ${podium[0].name} remporte le Cricket !`);
+  }
 
   async function saveGame(ranked: { idx: number; score: number }[]) {
     try {
@@ -121,24 +154,76 @@ export function CricketBoard({ players, gameId, onRestart }: CricketBoardProps) 
     }
   }
 
-  // Leader: highest score
+  // --- Leader banner logic ---
   const scores = data.map((d) => d.score);
   const maxScore = Math.max(...scores);
-  const minScore = Math.min(...scores);
-  const leaderIdx = scores.every((s) => s === 0)
-    ? null
-    : scores.indexOf(maxScore);
-  const secondScore = scores.filter((s) => s !== maxScore).length > 0
-    ? Math.max(...scores.filter((_, i) => i !== leaderIdx))
-    : null;
+  const allEqual = scores.every((s) => s === scores[0]);
 
-  const leaderInfo = leaderIdx !== null
-    ? { name: players[leaderIdx].name, color: players[leaderIdx].color, score: maxScore }
-    : null;
+  // No leader when all scores are equal (start or tie)
+  const topPlayers = allEqual
+    ? []
+    : players.filter((_, i) => scores[i] === maxScore);
+
+  const leaderInfo =
+    topPlayers.length === 0
+      ? null
+      : { name: topPlayers[0].name, color: topPlayers[0].color, score: maxScore };
+
+  const tiedLeaders = topPlayers.length > 1 ? topPlayers : undefined;
+
+  const secondScore =
+    leaderInfo && !tiedLeaders
+      ? (scores.filter((s) => s < maxScore).length > 0
+          ? Math.max(...scores.filter((s) => s < maxScore))
+          : null)
+      : null;
+
+  const minScore = Math.min(...scores);
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      <LeaderBanner leader={leaderInfo} secondScore={secondScore} mode="CRICKET" gameOver={gameOver} />
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <LeaderBanner
+            leader={leaderInfo}
+            secondScore={secondScore}
+            mode="CRICKET"
+            gameOver={gameOver}
+            tiedLeaders={tiedLeaders}
+          />
+        </div>
+
+        {/* Force-finish button */}
+        {!gameOver && (
+          <div className="flex items-center gap-2 shrink-0">
+            {confirmEnd ? (
+              <>
+                <span className="text-sm text-zinc-400">Terminer la partie ?</span>
+                <button
+                  onClick={() => { endGame(data); setConfirmEnd(false); }}
+                  className="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-500 transition-colors"
+                >
+                  Confirmer
+                </button>
+                <button
+                  onClick={() => setConfirmEnd(false)}
+                  className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-400 hover:text-white transition-colors"
+                >
+                  Annuler
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmEnd(true)}
+                className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-400 hover:border-red-600 hover:text-red-400 transition-colors"
+              >
+                <Flag className="h-4 w-4" />
+                Terminer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Toasts */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2 pointer-events-none">
@@ -188,7 +273,7 @@ export function CricketBoard({ players, gameId, onRestart }: CricketBoardProps) 
               </td>
               {data.map((pd, i) => {
                 const s = pd.score;
-                const isLeader = leaderIdx === i && s > 0;
+                const isLeader = leaderInfo !== null && scores[i] === maxScore && !allEqual;
                 const isLast = s === minScore && minScore !== maxScore && maxScore > 0;
                 return (
                   <td

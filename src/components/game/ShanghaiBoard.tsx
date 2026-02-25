@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Crosshair } from 'lucide-react';
+import { Crosshair, Flag } from 'lucide-react';
 import { LeaderBanner } from './LeaderBanner';
 import { PodiumReveal } from './PodiumReveal';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ export function ShanghaiBoard({ players, gameId, onRestart }: ShanghaiProps) {
   const [gameOver, setGameOver] = useState(false);
   const [podiumPlayers, setPodiumPlayers] = useState<{ name: string; color: string; position: number; score: string | number }[]>([]);
   const [saved, setSaved] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
 
   // Cumulative totals
   const totals = Array.from({ length: n }, (_, pi) =>
@@ -47,7 +48,7 @@ export function ShanghaiBoard({ players, gameId, onRestart }: ShanghaiProps) {
     });
   }
 
-  // All rounds filled → game over
+  // All rounds filled → game can be ended naturally
   const allFilled = scores.every((row) => row.every((v) => v !== ''));
 
   async function finishGame() {
@@ -81,32 +82,75 @@ export function ShanghaiBoard({ players, gameId, onRestart }: ShanghaiProps) {
     }
   }
 
-  // Leader: highest cumulative score
-  const leaderIdx = totals.some((t) => t > 0)
-    ? totals.indexOf(maxTotal)
-    : null;
+  // --- Leader banner logic ---
+  const allEqual = totals.every((t) => t === totals[0]);
+  const topPlayers = allEqual ? [] : players.filter((_, i) => totals[i] === maxTotal && maxTotal > 0);
+
+  const leaderInfo =
+    topPlayers.length === 0
+      ? null
+      : { name: topPlayers[0].name, color: topPlayers[0].color, score: maxTotal };
+
+  const tiedLeaders = topPlayers.length > 1 ? topPlayers : undefined;
+
   const secondScore =
-    leaderIdx !== null && totals.filter((t) => t < maxTotal).length > 0
-      ? Math.max(...totals.filter((_, i) => i !== leaderIdx))
+    leaderInfo && !tiedLeaders && totals.filter((t) => t < maxTotal).length > 0
+      ? Math.max(...totals.filter((t) => t < maxTotal))
       : null;
-  const leaderInfo = leaderIdx !== null && maxTotal > 0
-    ? { name: players[leaderIdx].name, color: players[leaderIdx].color, score: maxTotal }
-    : null;
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      <LeaderBanner leader={leaderInfo} secondScore={secondScore} mode="SHANGHAI" gameOver={gameOver} />
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <LeaderBanner
+            leader={leaderInfo}
+            secondScore={secondScore}
+            mode="SHANGHAI"
+            gameOver={gameOver}
+            tiedLeaders={tiedLeaders}
+          />
+        </div>
 
-      {allFilled && !gameOver && (
-        <motion.button
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          onClick={finishGame}
-          className="mx-auto flex items-center gap-2 rounded-xl bg-yellow-500 px-8 py-3 text-xl font-black text-black shadow-lg shadow-yellow-500/30 hover:bg-yellow-400 transition-colors"
-        >
-          🏆 Voir le Podium
-        </motion.button>
-      )}
+        {/* Force-finish or natural finish button */}
+        {!gameOver && (
+          <div className="flex items-center gap-2 shrink-0">
+            {allFilled ? (
+              <motion.button
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                onClick={finishGame}
+                className="flex items-center gap-2 rounded-xl bg-yellow-500 px-6 py-2.5 text-base font-black text-black shadow-lg shadow-yellow-500/30 hover:bg-yellow-400 transition-colors"
+              >
+                🏆 Voir le Podium
+              </motion.button>
+            ) : confirmEnd ? (
+              <>
+                <span className="text-sm text-zinc-400">Terminer la partie ?</span>
+                <button
+                  onClick={() => { finishGame(); setConfirmEnd(false); }}
+                  className="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-500 transition-colors"
+                >
+                  Confirmer
+                </button>
+                <button
+                  onClick={() => setConfirmEnd(false)}
+                  className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-400 hover:text-white transition-colors"
+                >
+                  Annuler
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmEnd(true)}
+                className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-400 hover:border-red-600 hover:text-red-400 transition-colors"
+              >
+                <Flag className="h-4 w-4" />
+                Terminer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-[#0a0a0c]">
         <table className="w-full border-collapse text-center">
@@ -138,7 +182,7 @@ export function ShanghaiBoard({ players, gameId, onRestart }: ShanghaiProps) {
                 Total
               </td>
               {totals.map((t, i) => {
-                const isLeader = leaderIdx === i && t === maxTotal && maxTotal > 0 && maxTotal !== minTotal;
+                const isLeader = leaderInfo !== null && t === maxTotal && !allEqual && maxTotal > 0;
                 const isLast = t === minTotal && maxTotal !== minTotal && maxTotal > 0;
                 return (
                   <td
