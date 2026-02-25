@@ -7,26 +7,42 @@ interface LeaderBannerProps {
   secondScore?: number | string | null;
   mode: string;
   gameOver?: boolean;
+  /** When multiple players share the top score, pass all of them here */
+  tiedLeaders?: { name: string; color: string }[];
 }
 
-export function LeaderBanner({ leader, secondScore, mode, gameOver }: LeaderBannerProps) {
+export function LeaderBanner({ leader, secondScore, mode, gameOver, tiedLeaders }: LeaderBannerProps) {
   if (!leader || gameOver) return null;
 
+  const isTied = tiedLeaders && tiedLeaders.length > 1;
+
   const gap =
-    secondScore !== null && secondScore !== undefined && typeof leader.score === 'number' && typeof secondScore === 'number'
+    !isTied &&
+    secondScore !== null &&
+    secondScore !== undefined &&
+    typeof leader.score === 'number' &&
+    typeof secondScore === 'number'
       ? leader.score - secondScore
       : null;
 
-  // X01: leader is the one with LEAST remaining (lowest score)
-  // Shanghai/Cricket: leader is the one with MOST points
-  const gapLabel = mode === 'X01'
-    ? gap !== null && gap < 0 ? `${Math.abs(gap)} pts d'avance` : null
-    : gap !== null && gap > 0 ? `+${gap} pts d'avance` : null;
+  // X01: leader has LEAST remaining → gap is negative to be meaningful
+  // Cricket/Shanghai: leader has MOST points → gap is positive
+  const gapLabel =
+    mode === 'X01'
+      ? gap !== null && gap < 0
+        ? `${Math.abs(gap)} pts d'avance`
+        : null
+      : gap !== null && gap > 0
+      ? `+${gap} pts d'avance`
+      : null;
+
+  const displayName = isTied ? tiedLeaders!.map((p) => p.name).join(', ') : leader.name;
+  const bannerKey = isTied ? tiedLeaders!.map((p) => p.name).join('+') : leader.name;
 
   return (
     <AnimatePresence>
       <motion.div
-        key={leader.name}
+        key={bannerKey}
         initial={{ opacity: 0, y: -20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -42,22 +58,34 @@ export function LeaderBanner({ leader, secondScore, mode, gameOver }: LeaderBann
           <Crown className="h-7 w-7 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" />
         </motion.div>
 
-        {/* Color dot */}
-        <div
-          className="h-4 w-4 flex-shrink-0 rounded-full ring-2 ring-white/20"
-          style={{ backgroundColor: leader.color }}
-        />
+        {/* Color dot(s) */}
+        {isTied ? (
+          <div className="flex gap-1">
+            {tiedLeaders!.map((p) => (
+              <div
+                key={p.name}
+                className="h-4 w-4 flex-shrink-0 rounded-full ring-2 ring-white/20"
+                style={{ backgroundColor: p.color }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div
+            className="h-4 w-4 flex-shrink-0 rounded-full ring-2 ring-white/20"
+            style={{ backgroundColor: leader.color }}
+          />
+        )}
 
         {/* Player info */}
         <div className="flex flex-col leading-none">
           <span className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
-            🏆 En tête
+            {isTied ? '🤝 Égalité' : '🏆 En tête'}
           </span>
           <span
             className="text-3xl font-black tracking-tight text-white"
             style={{ textShadow: `0 0 20px ${leader.color}60` }}
           >
-            {leader.name}
+            {displayName}
           </span>
         </div>
 

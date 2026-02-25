@@ -113,11 +113,13 @@ input[type=number] {
   transform: scale(0.88);
 }
 
-/* Print styles */
+/* Print styles — fond noir conservé */
 @media print {
   body {
-    background: white;
-    color: black;
+    background: #0a0a0c !important;
+    color: #f4f4f5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .no-print {
     display: none !important;
