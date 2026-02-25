@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg-dark: #0a0a0c;
+  --color-panel: #18181b;
+  --color-panel-alt: #27272a;
+  --color-accent: #eab308;
+  --color-accent-green: #4ade80;
+  --color-accent-red: #f87171;
+  --color-accent-blue: #38bdf8;
+}
+
+:root {
+  --background: #0a0a0c;
+  --foreground: #f4f4f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #0a0a0c;
+  background-image: radial-gradient(circle at 50% 0%, #1f1f22 0%, #0a0a0c 70%);
+  color: #f4f4f5;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0c;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Number inputs */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Placeholder */
+::placeholder {
+  color: #3f3f46;
+}
+
+/* Score cell color utilities */
+.score-perfect {
+  color: #facc15;
+  font-weight: 800;
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.6);
+}
+.score-good {
+  color: #38bdf8;
+  font-weight: 700;
+}
+.score-zero {
+  color: #52525b;
+}
+.score-leader {
+  color: #4ade80;
+  text-shadow: 0 0 20px rgba(74, 222, 128, 0.4);
+}
+.score-last {
+  color: #f87171;
+}
+
+/* Win flash animation */
+@keyframes flashWin {
+  0% { background-color: rgba(34, 197, 94, 0.4); transform: scale(1); }
+  50% { background-color: rgba(34, 197, 94, 0.8); transform: scale(1.03); }
+  100% { background-color: transparent; transform: scale(1); }
+}
+.win-anim {
+  animation: flashWin 1s ease-out;
+}
+
+/* Leader pulse animation */
+@keyframes leaderPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(74, 222, 128, 0.3), 0 0 40px rgba(74, 222, 128, 0.1); }
+  50% { box-shadow: 0 0 30px rgba(74, 222, 128, 0.6), 0 0 60px rgba(74, 222, 128, 0.2); }
+}
+.leader-pulse {
+  animation: leaderPulse 2s ease-in-out infinite;
+}
+
+/* Cricket button */
+.cricket-btn {
+  transition: all 0.1s;
+  user-select: none;
+  cursor: pointer;
+}
+.cricket-btn:active {
+  transform: scale(0.88);
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
