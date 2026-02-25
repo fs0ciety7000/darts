@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, games, gamePlayers, gameRounds, cricketTurns } from '@/lib/db';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and } from 'drizzle-orm';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -37,11 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       for (const r of results) {
         await db.update(gamePlayers)
           .set({ finishPosition: r.finishPosition, finalScore: r.finalScore })
-          .where(eq(gamePlayers.gameId, id));
-        // More specific update by player name
-        await db.update(gamePlayers)
-          .set({ finishPosition: r.finishPosition, finalScore: r.finalScore })
-          .where(eq(gamePlayers.playerName, r.playerName));
+          .where(and(eq(gamePlayers.gameId, id), eq(gamePlayers.playerName, r.playerName)));
       }
 
       return NextResponse.json({ success: true });
